@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Jose Vicente Carratalá Sanchis - Portafolio 3D</title>
+<style>
+  :root{
+    --fg:#ffffff;
+    --bg:#0b0f14;
+    --muted:#a9b3c1;
+    --accent:#32b3ff;
+    --overlay-bg:rgba(8,12,18,.45);
+    --handle:#e6f2ff;
+    --shadow:0 20px 60px rgba(0,0,0,.45);
+    --btn-bg:rgba(0,0,0,.35);
+    --btn-bg-hover:rgba(0,0,0,.55);
+    --btn-fg:#fff;
+    --fade:800ms; /* fundido entre láminas */
+  }
+
+  html,body{
+    margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Inter, Arial, sans-serif;
+  }
+
+  /* Escenario: ocupa todo el viewport */
+  .stage{ position:fixed; inset:0; overflow:hidden; isolation:isolate; background:#000; }
+  .layer{ position:absolute; inset:0; }
+  .layer img{
+    position:absolute; inset:0; width:100vw; height:100vh; object-fit:cover;
+    transition: opacity var(--fade) ease-in-out; /* cruzado */
+    will-change: opacity, transform;
+    opacity:1;
+  }
+  .layer.hidden img{ opacity:0; }
+  .layer.visible img{ opacity:1; }
+
+  /* Título/branding MUY grande */
+  .brand{
+    position:fixed; left:24px; top:22px; z-index:30;
+    padding:14px 18px; border-radius:18px;
+    backdrop-filter: blur(10px);
+    background: linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,.35));
+    box-shadow: var(--shadow);
+    font-weight:800; letter-spacing:.2px;
+    line-height:1.05;
+    font-size: clamp(28px, 4vw, 56px);
+  }
+  .brand small{
+    display:block; font-weight:600; color:white; margin-top:4px;
+    font-size: clamp(12px, 1.4vw, 18px);
+    letter-spacing:.3px;
+  }
+
+  /* Controles */
+  .controls{
+    position:fixed; right:24px; bottom:22px; z-index:35; display:flex; gap:10px; align-items:center;
+  }
+  .btn{
+    appearance:none; border:0; border-radius:14px; padding:10px 14px; cursor:pointer;
+    background:var(--btn-bg); color:var(--btn-fg); font-weight:700;
+    backdrop-filter: blur(6px); box-shadow: var(--shadow);
+    transition: background .2s ease, transform .08s ease;
+  }
+  .btn:hover{ background:var(--btn-bg-hover); }
+  .btn:active{ transform: translateY(1px) scale(.98); }
+  .play-indicator{
+    width:120px; height:6px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.22);
+    position:relative;
+  }
+  .play-indicator > i{
+    position:absolute; left:0; top:0; bottom:0; width:0%;
+    background:linear-gradient(90deg, var(--accent), #8df5ff);
+    transition: width var(--fade) linear;
+  }
+
+  /* Ventana informativa arrastrable */
+  .overlay{
+    position:fixed; left:50%; top:60%;
+    translate:-50% -50%;
+    z-index:40; width:min(720px, 88vw); max-height:70vh; overflow:auto;
+    border-radius:20px;
+    background:var(--overlay-bg);
+    backdrop-filter: blur(16px) saturate(1.2);
+    box-shadow: var(--shadow);
+    border:1px solid rgba(255,255,255,.12);
+  }
+  .overlay.hidden{ display:none; }
+  .ov-header{
+    display:flex; align-items:center; gap:12px;
+    padding:12px 14px; position:sticky; top:0;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+    cursor:grab; user-select:none;
+    border-bottom:1px dashed rgba(255,255,255,.12);
+  }
+  .ov-header:active{ cursor:grabbing; }
+  .handle{
+    width:22px; height:22px; border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, var(--handle), #9bd6ff);
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,.25), 0 4px 12px rgba(0,0,0,.35);
+    flex:0 0 auto;
+  }
+  .ov-title{ font-weight:800; letter-spacing:.3px; }
+  .ov-body{ padding:14px 16px 18px 16px; color:#eaf4ff; line-height:1.55; }
+  .ov-meta{ display:flex; gap:10px; flex-wrap:wrap; margin:.35rem 0 0.6rem 0; }
+  .chip{
+    padding:6px 10px; border-radius:999px; font-size:.85rem;
+    background:rgba(255,255,255,.12); color:#dff1ff; border:1px solid rgba(255,255,255,.14);
+  }
+
+  /* Pista de ayuda */
+  .hint{
+    position:fixed; left:24px; bottom:22px; z-index:31; color:#cfe5ff; opacity:.9;
+    font-size:.92rem; text-shadow: 0 2px 6px rgba(0,0,0,.5);
+  }
+
+  /* Velo de carga */
+  .loading{
+    position:fixed; inset:0; display:grid; place-items:center; z-index:50; background:#000;
+    color:#9ccfff; font-weight:700; letter-spacing:.4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <div class="layer visible" id="layerA"><img alt=""></div>
+  <div class="layer hidden"  id="layerB"><img alt=""></div>
+</div>
+
+<div class="brand">
+  Jose Vicente Carratalá Sanchis
+  <small>Portafolio 3D</small>
+</div>
+
+<div class="hint">Usa ◀ ▶, clic para avanzar, o arrastra la ventana de información. El auto-pase se puede activar o pausar.</div>
+
+<!-- Ventana arrastrable -->
+<div class="overlay" id="overlay" aria-modal="true" role="dialog">
+  <div class="ov-header" id="ovHandle" title="Arrástrame">
+    <div class="handle" aria-hidden="true"></div>
+    <div class="ov-title" id="ovTitle">Cargando…</div>
+  </div>
+  <div class="ov-body">
+    <div class="ov-meta" id="ovMeta"></div>
+    <div id="ovDesc">—</div>
+  </div>
+</div>
+
+<!-- Controles -->
+<div class="controls">
+  <button class="btn" id="btnPrev" title="Anterior (◀)">◀ Anterior</button>
+  <button class="btn" id="btnNext" title="Siguiente (▶)">Siguiente ▶</button>
+  <button class="btn" id="btnPlay" title="Activar/pausar auto-pase">⏵ Auto</button>
+  <div class="play-indicator" title="Progreso de la diapositiva"><i id="progressBar"></i></div>
+</div>
+
+<div class="loading" id="loading">Cargando portafolio…</div>
+
+<script>
+(() => {
+  const API = 'portfolio-list.php';
+  let intervalMs = 14000; // 14 segundos por lámina
+
+  const STAGE_A = document.getElementById('layerA').querySelector('img');
+  const STAGE_B = document.getElementById('layerB').querySelector('img');
+  const layerA  = document.getElementById('layerA');
+  const layerB  = document.getElementById('layerB');
+  const loading = document.getElementById('loading');
+
+  const overlay = document.getElementById('overlay');
+  const ovHandle= document.getElementById('ovHandle');
+  const ovTitle = document.getElementById('ovTitle');
+  const ovMeta  = document.getElementById('ovMeta');
+  const ovDesc  = document.getElementById('ovDesc');
+
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+  const btnPlay = document.getElementById('btnPlay');
+  const progressBar = document.getElementById('progressBar');
+
+  let laminas = [];
+  let iActual = 0;
+  let usandoA = true;
+  let auto = true;
+  let timer = null;
+  let progressTimer=null, tInicio=0;
+
+  /* Utilidades */
+  const rand = (min,max)=> Math.random()*(max-min)+min;
+
+  function mezclarEnSitio(arr){
+    for (let i = arr.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function tituloDesdeNombre(src){
+    const nombre = src.split('/').pop().replace(/\.[^.]+$/,'');
+    return nombre.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim().replace(/\b\w/g,c=>c.toUpperCase());
+  }
+  function fechaHumana(ts){
+    try{
+      const d = new Date(ts*1000);
+      return d.toLocaleDateString([], {year:'numeric', month:'short', day:'2-digit'});
+    }catch{ return ''; }
+  }
+
+  function setOverlay(i){
+    const s = laminas[i];
+    ovTitle.textContent = s.title || tituloDesdeNombre(s.src);
+    ovMeta.innerHTML = '';
+    const caps = [];
+    if (s.dim)  caps.push(`📐 ${s.dim}`);
+    if (s.size) caps.push(`🗂 ${s.size}`);
+    if (s.mtime) caps.push(`🕒 ${fechaHumana(s.mtime)}`);
+    if (!caps.length) caps.push('🖼 PNG');
+    caps.forEach(t=>{
+      const span=document.createElement('span'); span.className='chip'; span.textContent=t;
+      ovMeta.appendChild(span);
+    });
+    ovDesc.textContent = s.desc || 'Render 3D del portafolio. Arrastra esta ventana para moverla.';
+  }
+
+  function kenBurns(img){
+    img.getAnimations().forEach(a=>a.cancel());
+    let sx = rand(-3.0, 3.0), sy = rand(-3.0, 3.0);
+    let ex = rand(-3.0, 3.0), ey = rand(-3.0, 3.0);
+    const s0 = rand(1.03, 1.06), s1 = rand(1.10, 1.15);
+    if (Math.hypot(ex - sx, ey - sy) < 1.5){
+      const ang = rand(0, Math.PI*2), dist = rand(1.5, 3.5);
+      ex += Math.cos(ang)*dist; ey += Math.sin(ang)*dist;
+    }
+    img.animate(
+      [
+        { transform: `scale(${s0}) translate(${sx}%, ${sy}%)` },
+        { transform: `scale(${s1}) translate(${ex}%, ${ey}%)` }
+      ],
+      { duration: intervalMs, easing: 'linear', fill: 'forwards' }
+    );
+  }
+
+  function reiniciarProgreso(){
+    progressBar.style.width='0%';
+    tInicio = performance.now();
+    clearInterval(progressTimer);
+    progressTimer = setInterval(()=>{
+      const el = performance.now()-tInicio;
+      const pct = Math.max(0, Math.min(100, (el/intervalMs)*100));
+      progressBar.style.width = pct+'%';
+    }, 60);
+  }
+
+  function irA(i){
+    const s = laminas[i]; if (!s) return;
+    const preload = new Image(); preload.src = s.src;
+    preload.onload = ()=>{
+      const frente = usandoA ? STAGE_B : STAGE_A;
+      frente.src = s.src;
+      if (usandoA){
+        layerA.classList.add('hidden'); layerA.classList.remove('visible');
+        layerB.classList.remove('hidden'); layerB.classList.add('visible');
+      }else{
+        layerB.classList.add('hidden'); layerB.classList.remove('visible');
+        layerA.classList.remove('hidden'); layerA.classList.add('visible');
+      }
+      usandoA = !usandoA;
+      const imgVisible = usandoA ? STAGE_A : STAGE_B;
+      kenBurns(imgVisible);
+      setOverlay(i);
+      reiniciarProgreso();
+    };
+  }
+
+  function anterior(){ iActual = (iActual - 1 + laminas.length) % laminas.length; irA(iActual); }
+  function siguiente(){ iActual = (iActual + 1) % laminas.length; irA(iActual); }
+
+  function iniciarAuto(){
+    clearInterval(timer); clearInterval(progressTimer);
+    timer = setInterval(siguiente, intervalMs);
+    reiniciarProgreso();
+    btnPlay.textContent = '⏸ Auto';
+    auto = true;
+  }
+  function pararAuto(){
+    clearInterval(timer); clearInterval(progressTimer);
+    progressBar.style.width = '0%';
+    btnPlay.textContent = '⏵ Auto';
+    auto = false;
+  }
+  function alternarAuto(){ auto ? pararAuto() : iniciarAuto(); }
+
+  (function habilitarArrastre(){
+    let idPuntero=null, offX=0, offY=0;
+    const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+    function down(e){
+      const p = e.touches ? e.touches[0] : e;
+      idPuntero = p.identifier ?? 'mouse';
+      const r = overlay.getBoundingClientRect();
+      offX = p.clientX - r.left; offY = p.clientY - r.top;
+      ovHandle.setPointerCapture?.(idPuntero);
+      pararAuto();
+    }
+    function move(e){
+      if (idPuntero===null) return;
+      const p = e.touches ? e.touches[0] : e;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const ow = overlay.offsetWidth, oh = overlay.offsetHeight;
+      const left = clamp(p.clientX - offX, 8, vw - ow - 8);
+      const top  = clamp(p.clientY - offY, 8, vh - 8);
+      overlay.style.left = left + 'px';
+      overlay.style.top  = top  + 'px';
+      overlay.style.translate = '0 0';
+    }
+    function up(){
+      idPuntero=null;
+      if (!auto) iniciarAuto();
+      ovHandle.releasePointerCapture?.(idPuntero);
+    }
+    ovHandle.addEventListener('mousedown', down);
+    ovHandle.addEventListener('touchstart', down, {passive:true});
+    window.addEventListener('mousemove', move, {passive:false});
+    window.addEventListener('touchmove', move, {passive:false});
+    window.addEventListener('mouseup', up, {passive:true});
+    window.addEventListener('touchend', up, {passive:true});
+  })();
+
+  btnPrev.addEventListener('click', ()=>{ pararAuto(); anterior(); });
+  btnNext.addEventListener('click', ()=>{ pararAuto(); siguiente(); });
+  btnPlay.addEventListener('click', alternarAuto);
+
+  window.addEventListener('keydown', (e)=>{
+    if (e.key==='ArrowLeft'){ pararAuto(); anterior(); }
+    else if (e.key==='ArrowRight'){ pararAuto(); siguiente(); }
+    else if (e.key===' '){ e.preventDefault(); alternarAuto(); }
+  });
+  document.getElementById('stage').addEventListener('click', (e)=>{
+    const path = e.composedPath ? e.composedPath() : [];
+    if (path.includes(overlay)) return;
+    siguiente(); pararAuto();
+  });
+
+  /* Carga inicial, barajado y arranque aleatorio */
+  fetch(API, {cache:'no-cache'})
+    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(lista=>{
+      laminas = (Array.isArray(lista)?lista:[]).map(item=>({
+        src: item.src,
+        title: item.title || tituloDesdeNombre(item.src),
+        desc: item.desc || '',
+        mtime: item.mtime || null,
+        size: item.size || null,
+        dim:  item.dim  || null
+      }));
+      if(!laminas.length) throw new Error('No se han encontrado PNG en /portfolio');
+
+      /* 🔀 Barajar y empezar desde una lámina aleatoria */
+      mezclarEnSitio(laminas);
+      iActual = Math.floor(Math.random() * laminas.length);
+
+      STAGE_A.src = laminas[iActual].src;
+      STAGE_B.src = laminas[(iActual+1)%laminas.length].src;
+
+      kenBurns(STAGE_A);
+      setOverlay(iActual);
+
+      loading.remove();
+      iniciarAuto();
+    })
+    .catch(err=>{
+      console.error(err);
+      loading.textContent = 'Error cargando el portafolio ('+err.message+'). Revisa la ruta del PHP y la carpeta de imágenes.';
+    });
+})();
+</script>
+</body>
+</html>
+
