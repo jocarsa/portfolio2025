@@ -77,14 +77,15 @@
 
   /* Ventana informativa arrastrable */
   .overlay{
-    position:fixed; left:50%; top:60%;
+    position:fixed; left:50%; top:80%;
     translate:-50% -50%;
-    z-index:40; width:min(720px, 88vw); max-height:70vh; overflow:auto;
+    z-index:40; width:min(1220px, 88vw); max-height:70vh; overflow:auto;
     border-radius:20px;
     background:var(--overlay-bg);
     backdrop-filter: blur(16px) saturate(1.2);
     box-shadow: var(--shadow);
     border:1px solid rgba(255,255,255,.12);
+    text-align:justify;
   }
   .overlay.hidden{ display:none; }
   .ov-header{
@@ -100,10 +101,11 @@
     background:radial-gradient(circle at 30% 30%, var(--handle), #9bd6ff);
     box-shadow: inset 0 0 0 2px rgba(0,0,0,.25), 0 4px 12px rgba(0,0,0,.35);
     flex:0 0 auto;
+    display:none;
   }
   .ov-title{ font-weight:800; letter-spacing:.3px; }
   .ov-body{ padding:14px 16px 18px 16px; color:#eaf4ff; line-height:1.55; }
-  .ov-meta{ display:flex; gap:10px; flex-wrap:wrap; margin:.35rem 0 0.6rem 0; }
+  .ov-meta{ display:flex; gap:10px; flex-wrap:wrap; margin:.35rem 0 0.6rem 0; display:none;}
   .chip{
     padding:6px 10px; border-radius:999px; font-size:.85rem;
     background:rgba(255,255,255,.12); color:#dff1ff; border:1px solid rgba(255,255,255,.14);
@@ -161,7 +163,7 @@
 <script>
 (() => {
   const API = 'portfolio-list.php';
-  let intervalMs = 14000; // 14 segundos por lámina
+  let intervalMs = 5000; // 5 segundos por lámina
 
   const STAGE_A = document.getElementById('layerA').querySelector('img');
   const STAGE_B = document.getElementById('layerB').querySelector('img');
@@ -198,10 +200,27 @@
     return arr;
   }
 
+  // ✅ FIX: decodificar nombres de archivo URL-encoded (%20 → espacio, etc.)
   function tituloDesdeNombre(src){
-    const nombre = src.split('/').pop().replace(/\.[^.]+$/,'');
-    return nombre.replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim().replace(/\b\w/g,c=>c.toUpperCase());
+    let filename = src;
+    try {
+      filename = new URL(src, location.href).pathname.split('/').pop() || src;
+    } catch {
+      filename = src.split('?')[0].split('#')[0].split('/').pop() || src;
+    }
+
+    // decode %XX and convert '+' to space (por si viniera en estilo form-data)
+    try { filename = decodeURIComponent(filename); } catch {}
+    filename = filename.replace(/\+/g, ' ');
+
+    const base = filename.replace(/\.[^.]+$/, '');
+    return base
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b([^\s])/g, (m) => m.toUpperCase());
   }
+
   function fechaHumana(ts){
     try{
       const d = new Date(ts*1000);
